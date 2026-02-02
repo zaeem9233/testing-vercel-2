@@ -501,11 +501,11 @@ export default (async () => {
   
   if (import.meta.env.PROD) {
     const build = await import('virtual:react-router/server-build');
-    const rrNode = await import('@react-router/node');
+    const rrNode = await import(/* @vite-ignore */ '@react-router/node');
     const createRequestHandler =
-      'createRequestHandler' in rrNode ? rrNode.createRequestHandler : undefined;
+      rrNode?.createRequestHandler ?? rrNode?.default?.createRequestHandler ?? rrNode?.default;
 
-    if (!createRequestHandler) {
+    if (typeof createRequestHandler !== 'function') {
       throw new Error(
         'Missing createRequestHandler export from @react-router/node. Check @react-router/node version.'
       );
