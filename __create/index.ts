@@ -62,7 +62,9 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 app.onError((err, c) => {
-  if (c.req.method !== 'GET') {
+  const isApiRequest = c.req.path.startsWith('/api');
+
+  if (isApiRequest || c.req.method !== 'GET') {
     return c.json(
       {
         error: 'An error occurred in your app',
@@ -71,6 +73,7 @@ app.onError((err, c) => {
       500
     );
   }
+
   return c.html(getHTMLForErrorPage(err), 200);
 });
 
@@ -97,8 +100,8 @@ for (const method of ['post', 'put', 'patch'] as const) {
 if (process.env.AUTH_SECRET) {
   app.use(
     '*',
-    initAuthConfig((c) => ({
-      secret: c.env.AUTH_SECRET,
+    initAuthConfig(() => ({
+      secret: process.env.AUTH_SECRET,
       trustHost: true,
       basePath: '/api/auth',
       pages: {
@@ -282,6 +285,10 @@ app.all('/integrations/:path{.+}', async (c, next) => {
 });
 
 app.use('/api/auth/*', async (c, next) => {
+  if (!process.env.AUTH_SECRET) {
+    return c.json({ error: 'AUTH_SECRET is not configured' }, 500);
+  }
+
   if (isAuthAction(c.req.path)) {
     return authHandler()(c, next);
   }
