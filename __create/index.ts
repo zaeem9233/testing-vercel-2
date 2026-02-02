@@ -11,7 +11,6 @@ import { cors } from 'hono/cors';
 import { proxy } from 'hono/proxy';
 import { bodyLimit } from 'hono/body-limit';
 import { requestId } from 'hono/request-id';
-import { createRequestHandler } from '@react-router/node';
 import { createHonoServer } from 'react-router-hono-server/node';
 import { serializeError } from 'serialize-error';
 import ws from 'ws';
@@ -502,6 +501,16 @@ export default (async () => {
   
   if (import.meta.env.PROD) {
     const build = await import('virtual:react-router/server-build');
+    const rrNode = await import('@react-router/node');
+    const createRequestHandler =
+      'createRequestHandler' in rrNode ? rrNode.createRequestHandler : undefined;
+
+    if (!createRequestHandler) {
+      throw new Error(
+        'Missing createRequestHandler export from @react-router/node. Check @react-router/node version.'
+      );
+    }
+
     const handleRequest = createRequestHandler(build, process.env.NODE_ENV);
 
     app.use('*', async (c, next) => {
