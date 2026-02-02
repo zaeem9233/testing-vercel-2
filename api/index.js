@@ -4,8 +4,6 @@ let appPromise;
 
 async function getApp() {
   if (!appPromise) {
-    // Ensure the server entry returns the Hono app (not a listening server)
-    process.env.VITE_BUILD = 'true';
     const mod = await import('../build/server/index.js');
     appPromise = await mod.default;
   }

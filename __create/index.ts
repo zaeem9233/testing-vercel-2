@@ -11,6 +11,7 @@ import { cors } from 'hono/cors';
 import { proxy } from 'hono/proxy';
 import { bodyLimit } from 'hono/body-limit';
 import { requestId } from 'hono/request-id';
+import { createRequestHandler } from '@react-router/node';
 import { createHonoServer } from 'react-router-hono-server/node';
 import { serializeError } from 'serialize-error';
 import ws from 'ws';
@@ -478,6 +479,7 @@ import { ensureRoutesRegistered, getApiApp } from './route-builder';
 
 // Check if we're in build mode (Vite sets this during SSR build)
 const isBuild = process.argv.includes('build') || process.env.VITE_BUILD === 'true';
+const isVercel = !!process.env.VERCEL;
 
 export default (async () => {
   // Skip route-builder in production since routes are manually registered
@@ -498,12 +500,25 @@ export default (async () => {
     console.log('[Server] Using manually registered routes in production');
   }
   
+  if (import.meta.env.PROD) {
+    const build = await import('virtual:react-router/server-build');
+    const handleRequest = createRequestHandler(build, process.env.NODE_ENV);
+
+    app.use('*', async (c, next) => {
+      if (c.req.path.startsWith('/api')) {
+        return next();
+      }
+
+      return await handleRequest(c.req.raw);
+    });
+  }
+
   // During build, just return the app config without starting the server
-  if (isBuild) {
-    console.log('[Server] Build mode detected, skipping server start');
+  if (isBuild || isVercel) {
+    console.log('[Server] Build/serverless mode detected, skipping server start');
     return app;
   }
-  
+
   return await createHonoServer({
     app,
     defaultLogger: false,
