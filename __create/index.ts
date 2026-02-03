@@ -23,6 +23,25 @@ neonConfig.webSocketConstructor = ws;
 neonConfig.poolQueryViaFetch = true;
 neonConfig.fetchConnectionCache = true;
 
+const normalizeAuthUrl = (url?: string) => {
+  if (!url) return url;
+  return url.replace(/\/api\/auth\/?$/, '');
+};
+
+if (process.env.VERCEL) {
+  const vercelUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : undefined;
+  const normalized = normalizeAuthUrl(process.env.AUTH_URL);
+  if (!normalized || normalized.includes('localhost')) {
+    if (vercelUrl) {
+      process.env.AUTH_URL = vercelUrl;
+    }
+  } else if (normalized !== process.env.AUTH_URL) {
+    process.env.AUTH_URL = normalized;
+  }
+}
+
 const als = new AsyncLocalStorage<{ requestId: string }>();
 
 for (const method of ['log', 'info', 'warn', 'error', 'debug'] as const) {
