@@ -108,7 +108,8 @@ if (process.env.AUTH_SECRET) {
         signIn: '/account/signin',
         signOut: '/account/logout',
       },
-      skipCSRFCheck: skipCSRFCheck,
+      skipCSRFCheck:
+        process.env.NODE_ENV === 'development' ? skipCSRFCheck : undefined,
       session: {
         strategy: 'jwt',
       },
