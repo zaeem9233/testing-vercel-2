@@ -1,4 +1,10 @@
-import { Readable } from 'node:stream';
+const streamToBuffer = async (stream) => {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return chunks.length ? Buffer.concat(chunks) : null;
+};
 
 let appPromise;
 
@@ -30,13 +36,12 @@ export default async function handler(req, res) {
   const body =
     req.method === 'GET' || req.method === 'HEAD'
       ? undefined
-      : Readable.toWeb(req);
+      : await streamToBuffer(req);
 
   const request = new Request(url, {
     method: req.method,
     headers,
     body,
-    ...(body ? { duplex: 'half' } : {}),
   });
 
   const response = await app.fetch(request);
