@@ -8,10 +8,16 @@ export default function CreateAuth() {
             if (!c) {
                 return null;
             }
+            const resolvedAuthUrl =
+                process.env.AUTH_URL ||
+                (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+            const secureCookie =
+                process.env.NODE_ENV === 'production' ||
+                (resolvedAuthUrl ? resolvedAuthUrl.startsWith('https') : false);
             const token = await getToken({
                 req: c.req.raw,
                 secret: process.env.AUTH_SECRET,
-                secureCookie: process.env.AUTH_URL?.startsWith('https'),
+                secureCookie,
             });
             if (token) {
                 return {
