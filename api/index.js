@@ -36,6 +36,7 @@ export default async function handler(req, res) {
     method: req.method,
     headers,
     body,
+    ...(body ? { duplex: 'half' } : {}),
   });
 
   const response = await app.fetch(request);
