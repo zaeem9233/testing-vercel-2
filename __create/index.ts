@@ -45,6 +45,24 @@ const pool = new Pool({
 });
 const adapter = NeonAdapter(pool);
 
+const DB_TIMEOUT_MS = Number(process.env.DB_QUERY_TIMEOUT_MS ?? 10000);
+
+const withTimeout = async <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+};
+
 const app = new Hono();
 
 app.use('*', requestId());
@@ -171,7 +189,11 @@ if (process.env.AUTH_SECRET) {
                 return null;
               }
 
-              const user = await adapter.getUserByEmail(email);
+              const user = await withTimeout(
+                adapter.getUserByEmail(email),
+                DB_TIMEOUT_MS,
+                'getUserByEmail'
+              );
               if (!user) {
                 return null;
               }
@@ -225,27 +247,36 @@ if (process.env.AUTH_SECRET) {
               }
 
               console.log('[AUTH SIGNUP] Checking for existing user:', email);
-              const existingUser = await adapter.getUserByEmail(email);
+              const existingUser = await withTimeout(
+                adapter.getUserByEmail(email),
+                DB_TIMEOUT_MS,
+                'getUserByEmail'
+              );
               if (existingUser) {
                 console.error('[AUTH SIGNUP] User already exists');
                 return null;
               }
 
               console.log('[AUTH SIGNUP] Creating new user...');
-              const newUser = await adapter.createUser({
+              const newUser = await withTimeout(
+                adapter.createUser({
                 id: crypto.randomUUID(),
                 emailVerified: null,
                 email,
                 name: typeof name === 'string' && name.length > 0 ? name : email.split('@')[0],
                 image: typeof image === 'string' && image.length > 0 ? image : undefined,
-              });
+                }),
+                DB_TIMEOUT_MS,
+                'createUser'
+              );
               
               console.log('[AUTH SIGNUP] User created, ID:', newUser.id);
               console.log('[AUTH SIGNUP] Hashing password...');
               const hashedPassword = await hash(password);
               
               console.log('[AUTH SIGNUP] Linking account...');
-              await adapter.linkAccount({
+              await withTimeout(
+                adapter.linkAccount({
                 extraData: {
                   password: hashedPassword,
                 },
@@ -253,7 +284,10 @@ if (process.env.AUTH_SECRET) {
                 userId: newUser.id,
                 providerAccountId: newUser.id,
                 provider: 'credentials',
-              });
+                }),
+                DB_TIMEOUT_MS,
+                'linkAccount'
+              );
               
               console.log('[AUTH SIGNUP] Success! User:', newUser.email);
               return newUser;
