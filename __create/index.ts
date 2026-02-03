@@ -361,7 +361,20 @@ app.use('/api/auth/*', async (c, next) => {
   }
 
   if (isAuthAction(c.req.path)) {
-    return authHandler()(c, next);
+    const start = Date.now();
+    console.log('[AUTH] Start', c.req.method, c.req.path);
+    try {
+      const response = await withTimeout(
+        Promise.resolve(authHandler()(c, next)),
+        Number(process.env.AUTH_HANDLER_TIMEOUT_MS ?? 15000),
+        'authHandler'
+      );
+      console.log('[AUTH] End', c.req.method, c.req.path, 'in', Date.now() - start, 'ms');
+      return response;
+    } catch (error) {
+      console.error('[AUTH] Handler error', error);
+      return c.json({ error: 'Auth handler timeout/error', details: serializeError(error) }, 504);
+    }
   }
   return next();
 });
