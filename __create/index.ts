@@ -20,6 +20,8 @@ import { isAuthAction } from './is-auth-action';
 import { API_BASENAME, api } from './route-builder';
 import { auth as getAuth } from '../src/auth.js';
 neonConfig.webSocketConstructor = ws;
+neonConfig.poolQueryViaFetch = true;
+neonConfig.fetchConnectionCache = true;
 
 const als = new AsyncLocalStorage<{ requestId: string }>();
 
@@ -108,15 +110,17 @@ if (process.env.CORS_ORIGINS) {
   );
 }
 for (const method of ['post', 'put', 'patch'] as const) {
-  app[method](
-    '*',
-    bodyLimit({
+  app[method]('*', async (c, next) => {
+    if (c.req.path.startsWith('/api/auth')) {
+      return next();
+    }
+    return bodyLimit({
       maxSize: 4.5 * 1024 * 1024, // 4.5mb to match vercel limit
       onError: (c) => {
         return c.json({ error: 'Body size limit exceeded' }, 413);
       },
-    })
-  );
+    })(c, next);
+  });
 }
 
 if (process.env.AUTH_SECRET) {
@@ -181,20 +185,25 @@ if (process.env.AUTH_SECRET) {
           },
           authorize: async (credentials) => {
             try {
-              const { email, password } = credentials;
+              console.log('[AUTH SIGNIN] Starting signin process...');
+              const { email, password } = credentials ?? {};
               if (!email || !password) {
+                console.error('[AUTH SIGNIN] Missing credentials');
                 return null;
               }
               if (typeof email !== 'string' || typeof password !== 'string') {
+                console.error('[AUTH SIGNIN] Invalid credential types');
                 return null;
               }
 
+              console.log('[AUTH SIGNIN] Looking up user:', email);
               const user = await withTimeout(
                 adapter.getUserByEmail(email),
                 DB_TIMEOUT_MS,
                 'getUserByEmail'
               );
               if (!user) {
+                console.error('[AUTH SIGNIN] User not found');
                 return null;
               }
               const matchingAccount = user.accounts.find(
@@ -202,14 +211,18 @@ if (process.env.AUTH_SECRET) {
               );
               const accountPassword = matchingAccount?.password;
               if (!accountPassword) {
+                console.error('[AUTH SIGNIN] No credentials account password');
                 return null;
               }
 
+              console.log('[AUTH SIGNIN] Verifying password...');
               const isValid = await verify(accountPassword, password);
               if (!isValid) {
+                console.error('[AUTH SIGNIN] Invalid password');
                 return null;
               }
 
+              console.log('[AUTH SIGNIN] Success for:', email);
               return user;
             } catch (error) {
               console.error('[AUTH SIGNIN ERROR]:', error);

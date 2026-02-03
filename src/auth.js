@@ -5,7 +5,7 @@
  */
 import CreateAuth from "@auth/create"
 import Credentials from "@auth/core/providers/credentials"
-import { Pool } from '@neondatabase/serverless'
+import { Pool, neonConfig } from '@neondatabase/serverless'
 import { hash, verify } from 'argon2'
 
 function Adapter(client) {
@@ -249,6 +249,9 @@ function Adapter(client) {
     },
   };
 }
+neonConfig.poolQueryViaFetch = true;
+neonConfig.fetchConnectionCache = true;
+
 const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
   max: 5,
@@ -273,7 +276,7 @@ export const { auth } = CreateAuth({
     },
   },
   authorize: async (credentials) => {
-    const { email, password } = credentials;
+    const { email, password } = credentials ?? {};
     if (!email || !password) {
       return null;
     }
